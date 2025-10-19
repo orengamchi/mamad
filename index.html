@@ -1,0 +1,1481 @@
+<!DOCTYPE html>
+<html lang="he">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>חדר בקרה תלת-ממדי</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #111;
+            color: #fff;
+        }
+        canvas {
+            display: block;
+        }
+        .panel {
+            position: absolute;
+            background-color: rgba(0, 0, 0, 0.7);
+            padding: 15px;
+            border-radius: 10px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+            direction: rtl;
+            z-index: 10;
+            width: 220px;
+        }
+        #controls {
+            top: 15px;
+            left: 15px;
+        }
+        #materials-panel {
+            top: 320px;
+            left: 15px;
+        }
+        #properties-panel {
+            top: 15px;
+            right: 15px;
+            display: none; /* Hidden by default */
+        }
+        #scene-objects-panel {
+            top: 530px; 
+            left: 15px;
+            height: calc(100vh - 550px);
+            overflow-y: auto;
+            transition: left 0.5s ease-in-out; /* Added for smooth hiding */
+        }
+        .control-group {
+            margin-bottom: 12px;
+        }
+        .control-group:last-child {
+            margin-bottom: 0;
+        }
+        label, .panel h3 {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+            font-size: 14px;
+        }
+        .panel h3 {
+            margin-top: 0;
+            margin-bottom: 10px;
+            text-align: center;
+            border-bottom: 1px solid rgba(255,255,255,0.2);
+            padding-bottom: 8px;
+        }
+        button {
+            padding: 8px 12px;
+            border: 1px solid #444;
+            background-color: #333;
+            color: #fff;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background-color 0.2s, transform 0.1s;
+            width: 100%;
+            margin-top: 5px;
+        }
+        button:hover {
+            background-color: #555;
+        }
+        button:active {
+            transform: scale(0.95);
+        }
+        button.on {
+            background-color: #4CAF50;
+            border-color: #4CAF50;
+        }
+        button.on:hover {
+            background-color: #66bb6a;
+        }
+        input[type="range"] {
+            width: 100%;
+            cursor: pointer;
+        }
+        #file-input, #load-scene-input, #animation-input {
+            display: none;
+        }
+        .prop-grid {
+            display: grid;
+            grid-template-columns: 20px 1fr 1fr 1fr;
+            gap: 5px;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+        .scale-grid {
+            display: grid;
+            grid-template-columns: 20px 1fr 1fr 1fr 25px;
+             gap: 5px;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+        .prop-grid label, .scale-grid label {
+            font-weight: normal;
+            font-size: 12px;
+        }
+        .prop-grid input, .scale-grid input {
+            width: 100%;
+            background-color: #222;
+            color: #fff;
+            border: 1px solid #555;
+            border-radius: 4px;
+            padding: 4px;
+            text-align: center;
+            font-size: 12px;
+            -moz-appearance: textfield;
+        }
+        input::-webkit-outer-spin-button,
+        input::-webkit-inner-spin-button {
+          -webkit-appearance: none;
+          margin: 0;
+        }
+        #close-props-btn {
+            position: absolute;
+            top: 5px;
+            left: 5px;
+            width: 20px;
+            height: 20px;
+            padding: 0;
+            line-height: 20px;
+            text-align: center;
+            margin: 0;
+            border: none;
+            background: transparent;
+            color: #fff;
+            cursor: pointer;
+        }
+        #scale-lock {
+            cursor: pointer;
+            opacity: 0.6;
+            width: 16px;
+        }
+        #scale-lock.locked {
+            opacity: 1;
+        }
+        #objects-list {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+        #objects-list li {
+            padding: 8px;
+            cursor: pointer;
+            border-radius: 4px;
+            transition: background-color 0.2s;
+            font-size: 13px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        #objects-list li:hover {
+            background-color: rgba(255, 255, 255, 0.1);
+        }
+        #objects-list li.selected {
+            background-color: #0d6efd;
+            color: white;
+        }
+    </style>
+</head>
+<body>
+    <!-- UI Controls Panel -->
+    <div id="controls" class="panel">
+        <div class="control-group">
+            <label for="fan-dimmer">מאוורר תקרה</label>
+            <input type="range" id="fan-dimmer" min="0" max="0.2" value="0" step="0.001">
+        </div>
+         <div class="control-group">
+            <label for="light-intensity">עוצמת תאורה</label>
+            <input type="range" id="light-intensity" min="0" max="50" value="5" step="1">
+        </div>
+        <div class="control-group">
+            <label for="bloom-strength">אפקט זוהר</label>
+            <input type="range" id="bloom-strength" min="0" max="1.5" value="0" step="0.01">
+        </div>
+        <div class="control-group">
+            <label for="dof-focus">עומק שדה</label>
+            <input type="range" id="dof-focus" min="0" max="10" value="0" step="0.1">
+        </div>
+        <div class="control-group">
+            <label for="wall-color">צבע קירות</label>
+            <input type="color" id="wall-color" value="#a0a0a0" style="width: 100%; height: 30px; padding: 0; border: none; cursor: pointer;">
+        </div>
+    </div>
+
+    <!-- Materials Panel -->
+    <div id="materials-panel" class="panel">
+        <h3>חומרים</h3>
+        <div class="control-group">
+            <label for="roughness-slider">ברק (קירות ורצפה)</label>
+            <input type="range" id="roughness-slider" min="0" max="1" value="0.8" step="0.01">
+        </div>
+        <div class="control-group">
+            <label for="bump-slider">בליטות (עם טקסטורה)</label>
+            <input type="range" id="bump-slider" min="0" max="0.1" value="0.01" step="0.001">
+        </div>
+        <div class="control-group">
+            <button id="upload-wall-texture-btn">העלה טקסטורת קיר</button>
+            <button id="upload-floor-texture-btn">העלה טקסטורת רצפה</button>
+        </div>
+    </div>
+
+
+    <!-- Hidden file inputs remain for functionality -->
+    <input type="file" id="file-input" accept=".glb,.gltf,.fbx" style="display: none;">
+    <input type="file" id="load-scene-input" accept=".json" style="display: none;">
+    <input type="file" id="animation-input" accept=".fbx" style="display: none;">
+    <input type="file" id="wall-texture-input" accept="image/*" style="display: none;">
+    <input type="file" id="floor-texture-input" accept="image/*" style="display: none;">
+
+
+    <!-- Scene Objects Panel -->
+    <div id="scene-objects-panel" class="panel">
+        <h3>אובייקטים בסצנה</h3>
+        <ul id="objects-list"></ul>
+    </div>
+
+    <!-- Properties Panel -->
+    <div id="properties-panel" class="panel">
+        <button id="close-props-btn">X</button>
+        <h3>מאפיינים</h3>
+        <div class="control-group">
+            <label>מיקום</label>
+            <div class="prop-grid">
+                <span>X</span><input type="number" id="pos-x" step="0.1">
+                <span>Y</span><input type="number" id="pos-y" step="0.1">
+                <span>Z</span><input type="number" id="pos-z" step="0.1">
+            </div>
+        </div>
+        <div class="control-group">
+            <label>סיבוב (מעלות)</label>
+            <div class="prop-grid">
+                <span>X</span><input type="number" id="rot-x" step="1">
+                <span>Y</span><input type="number" id="rot-y" step="1">
+                <span>Z</span><input type="number" id="rot-z" step="1">
+            </div>
+        </div>
+        <div class="control-group">
+            <label>קנה מידה</label>
+            <div class="scale-grid">
+                <span>X</span><input type="number" id="scale-x" step="0.05">
+                <span>Y</span><input type="number" id="scale-y" step="0.05">
+                <span>Z</span><input type="number" id="scale-z" step="0.05">
+                <img id="scale-lock" src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNCIgaGVpZHRoPSIyNCIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiBzdHJva2U9IiNmZmYiIHN0cm9rZS13aWR0aD0iMiIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiBzdHJva2UtbGluZWpvaW49InJvdW5kIj48cGF0aCBkPSJNMTAgMTNoLTQgYTEgMSAwIDAgMCAtMSAxIHY0IGExIDEgMCAwIDAgMSAxIGg0IGExIDEgMCAwIDAgMSAtMSB2LTQgYTEgMSAwIDAgMCAtMSAtMSB6Ij48L3BhdGggZD0iTTcgMTFWNyBhNS4wMDYgNS4wMDYgMCAwIDEgNSAtNSA1IDUgMCAwIDEgMy4xMzQgMS45MDUiPjwvcGF0aD48cGF0aCBkPSJNMTQgMTRoNCBhMSAxIDAgMCAwIDEgLTEgdi0xIGExIDEgMCAwIDAgLTEgLTEgaC0xIj48L3BhdGggPjwvc3ZnPg==" class="locked" title="נעל/שחרר פרופורציות">
+            </div>
+        </div>
+        <div id="animation-controls" class="control-group" style="display: none; border-top: 1px solid rgba(255,255,255,0.2); padding-top: 10px; margin-top: 10px;">
+            <label>אנימציה</label>
+            <button id="load-animation-btn">טען אנימציה</button>
+        </div>
+    </div>
+
+    <!-- Ticker Text Input Overlay -->
+    <div id="ticker-input-overlay" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.8); z-index: 20; display: none; justify-content: center; align-items: center; flex-direction: column; color: white; direction: ltr;">
+        <div style="background-color: #222; padding: 20px; border-radius: 10px; border: 1px solid #555; text-align: center;">
+            <h3 style="margin-top: 0; direction: rtl;">הקלד טקסט למסך הלד</h3>
+            <input type="text" id="ticker-text-input" style="width: 300px; padding: 10px; font-size: 16px; margin-bottom: 10px; direction: rtl;">
+            <button id="set-ticker-text-btn" style="width: 100%; padding: 10px; font-size: 16px; direction: rtl;">עדכן טקסט</button>
+        </div>
+    </div>
+
+
+    <!-- Import maps for three.js -->
+    <script type="importmap">
+    {
+        "imports": {
+            "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+            "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+        }
+    }
+    </script>
+
+    <!-- Main 3D Scene Script -->
+    <script type="module">
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+        import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+        import { FBXLoader } from 'three/addons/loaders/FBXLoader.js';
+        import { TransformControls } from 'three/addons/controls/TransformControls.js';
+        import { RectAreaLightUniformsLib } from 'three/addons/lights/RectAreaLightUniformsLib.js';
+        import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+        import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+        import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+        import { BokehPass } from 'three/addons/postprocessing/BokehPass.js';
+        import { Reflector } from 'three/addons/objects/Reflector.js';
+
+        // Initialize RectAreaLight stuff
+        RectAreaLightUniformsLib.init();
+
+        // --- Scene Basic Setup ---
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x101010);
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        camera.position.set(0, 1.8, 4.5);
+        const clock = new THREE.Clock();
+        const mixers = [];
+        let tickerTriggerObject = null;
+        const LOCAL_STORAGE_KEY = 'controlRoomSceneState';
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        document.body.appendChild(renderer.domElement);
+
+        const controls = new OrbitControls(camera, renderer.domElement);
+        controls.target.set(0, 1.2, 0);
+        controls.update();
+
+        // Moved loader initializations here to fix ReferenceError
+        const gltfLoader = new GLTFLoader();
+        const fbxLoader = new FBXLoader();
+        const textureLoader = new THREE.TextureLoader();
+
+        // --- Post-processing ---
+        const composer = new EffectComposer(renderer);
+        const renderPass = new RenderPass(scene, camera);
+        composer.addPass(renderPass);
+
+        const bloomPass = new UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 1.5, 0.4, 0.85);
+        bloomPass.threshold = 0;
+        bloomPass.strength = 0; // Start with bloom off
+        bloomPass.radius = 0;
+        composer.addPass(bloomPass);
+
+        const bokehPass = new BokehPass(scene, camera, {
+            focus: 1.0,
+            aperture: 0.025,
+            maxblur: 0.01,
+            width: window.innerWidth,
+            height: window.innerHeight
+        });
+        bokehPass.enabled = false; // Start with DoF off
+        composer.addPass(bokehPass);
+
+        // --- History & Undo/Redo Setup ---
+        const history = [];
+        const redoHistory = [];
+        const MAX_HISTORY = 20;
+        let isUndoing = false;
+
+        function recordState(object) {
+            if (isUndoing || !object) return;
+            history.push({
+                uuid: object.uuid,
+                transform: {
+                    position: object.position.clone(),
+                    rotation: object.rotation.clone(),
+                    scale: object.scale.clone()
+                }
+            });
+            if (history.length > MAX_HISTORY) {
+                history.shift();
+            }
+            redoHistory.length = 0;
+            saveStateToLocalStorage();
+        }
+
+        function undo() {
+            if (history.length === 0) return;
+            isUndoing = true;
+            const lastState = history.pop();
+            const objectToUndo = transformableModels.find(m => m.uuid === lastState.uuid);
+
+            if (objectToUndo) {
+                redoHistory.push({
+                    uuid: objectToUndo.uuid,
+                    transform: {
+                        position: objectToUndo.position.clone(),
+                        rotation: objectToUndo.rotation.clone(),
+                        scale: objectToUndo.scale.clone()
+                    }
+                });
+                objectToUndo.position.copy(lastState.transform.position);
+                objectToUndo.rotation.copy(lastState.transform.rotation);
+                objectToUndo.scale.copy(lastState.transform.scale);
+                if (transformControls.object === objectToUndo) {
+                    updatePropertiesPanel(objectToUndo);
+                }
+            }
+            isUndoing = false;
+            saveStateToLocalStorage();
+        }
+
+        function redo() {
+            if (redoHistory.length === 0) return;
+            isUndoing = true;
+            const stateToRedo = redoHistory.pop();
+            const objectToRedo = transformableModels.find(m => m.uuid === stateToRedo.uuid);
+
+            if (objectToRedo) {
+                 history.push({
+                     uuid: objectToRedo.uuid,
+                     transform: {
+                         position: objectToRedo.position.clone(),
+                         rotation: objectToRedo.rotation.clone(),
+                         scale: objectToRedo.scale.clone()
+                     }
+                 });
+                objectToRedo.position.copy(stateToRedo.transform.position);
+                objectToRedo.rotation.copy(stateToRedo.transform.rotation);
+                objectToRedo.scale.copy(stateToRedo.transform.scale);
+                 if (transformControls.object === objectToRedo) {
+                    updatePropertiesPanel(objectToRedo);
+                }
+            }
+            isUndoing = false;
+            saveStateToLocalStorage();
+        }
+
+        // --- Transform Controls (Gizmo) Setup ---
+        const transformControls = new TransformControls(camera, renderer.domElement);
+        scene.add(transformControls);
+        const raycaster = new THREE.Raycaster();
+        const mouse = new THREE.Vector2();
+        let transformableModels = [];
+        const interactiveButtons = [];
+
+        transformControls.addEventListener('dragging-changed', function (event) {
+            controls.enabled = !event.value;
+             if (!event.value && transformControls.object) {
+                 recordState(transformControls.object);
+            }
+        });
+
+        // --- Camera Zoom Animation ---
+        let isZooming = false;
+        const zoomTargetPosition = new THREE.Vector3();
+        const zoomTargetLookAt = new THREE.Vector3();
+
+        // --- Materials & Textures ---
+        const plasticMaterial = new THREE.MeshStandardMaterial({ color: 0x222222, roughness: 0.6 });
+        let floorMaterial = null;
+
+        // --- Room Geometry ---
+        const ROOM_WIDTH = 6;
+        const ROOM_DEPTH = 6;
+        const ROOM_HEIGHT = 3;
+        const roomGeometry = new THREE.BoxGeometry(ROOM_WIDTH, ROOM_HEIGHT, ROOM_DEPTH);
+        const wallMaterial = new THREE.MeshStandardMaterial({ color: 0xa0a0a0, side: THREE.BackSide, roughness: 0.8 });
+        const room = new THREE.Mesh(roomGeometry, wallMaterial);
+        room.position.y = ROOM_HEIGHT / 2;
+        room.receiveShadow = true;
+        scene.add(room);
+        
+        // --- Mirror ---
+        const mirrorGeometry = new THREE.PlaneGeometry(2.0, 1.2);
+        const mirror = new Reflector(mirrorGeometry, {
+            clipBias: 0.003,
+            textureWidth: window.innerWidth * window.devicePixelRatio,
+            textureHeight: window.innerHeight * window.devicePixelRatio,
+            color: 0x777777
+        });
+        mirror.position.set(-ROOM_WIDTH / 2 + 0.05, 1.2, 0);
+        mirror.rotation.y = Math.PI / 2;
+        scene.add(mirror);
+
+        // --- Lighting ---
+        let mainLightIntensity = 5; // RectAreaLight needs higher intensity
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.1);
+        scene.add(ambientLight);
+
+        let mainLightFixtures = [];
+        const mainLightSources = [];
+
+        const deskLampLight = new THREE.SpotLight(0xfff0c2, 5, 4, Math.PI * 0.2, 0.5, 1);
+        deskLampLight.castShadow = true;
+        deskLampLight.visible = false;
+        scene.add(deskLampLight);
+        scene.add(deskLampLight.target);
+        
+        const doorLight = new THREE.PointLight(0xff0000, 2, 1);
+        doorLight.visible = false;
+        doorLight.position.set(0.6, 2.2, ROOM_DEPTH/2 - 0.2);
+        scene.add(doorLight);
+
+        // --- Security Cameras ---
+        const securityCameras = [];
+        const securityCameraRenderTargets = [];
+        const monitorMaterials = [];
+        const areMonitorsOn = [false, false, false, false];
+
+        const cameraPositions = [
+            new THREE.Vector3(-ROOM_WIDTH / 2 + 0.2, ROOM_HEIGHT - 0.2, -ROOM_DEPTH / 2 + 0.2),
+            new THREE.Vector3(ROOM_WIDTH / 2 - 0.2, ROOM_HEIGHT - 0.2, -ROOM_DEPTH / 2 + 0.2),
+            new THREE.Vector3(-ROOM_WIDTH / 2 + 0.2, ROOM_HEIGHT - 0.2, ROOM_DEPTH / 2 - 0.2),
+            new THREE.Vector3(ROOM_WIDTH / 2 - 0.2, ROOM_HEIGHT - 0.2, ROOM_DEPTH / 2 - 0.2),
+        ];
+
+        for (let i = 0; i < 4; i++) {
+            const cam = new THREE.PerspectiveCamera(60, 1.1 / 0.6, 0.1, 100);
+            cam.position.copy(cameraPositions[i]);
+            cam.lookAt(0, 1, 0);
+            scene.add(cam);
+
+            let camUrl = "https://raw.githubusercontent.com/orengamchi/mamad/main/surveillance_camera.glb";
+            gltfLoader.load(camUrl, (gltf) => {
+                const camModel = gltf.scene;
+                camModel.scale.set(0.2, 0.2, 0.2);
+                camModel.position.copy(cameraPositions[i]);
+                camModel.lookAt(0, 1, 0);
+                scene.add(camModel);
+            });
+
+            securityCameras.push(cam);
+
+            const renderTarget = new THREE.WebGLRenderTarget(512, 280);
+            securityCameraRenderTargets.push(renderTarget);
+            monitorMaterials.push(new THREE.MeshBasicMaterial({ map: renderTarget.texture }));
+        }
+
+        // --- Room Objects (Procedural) ---
+        const monitorGroup = new THREE.Group();
+        const monitorOffMaterial = new THREE.MeshBasicMaterial({ color: 0x050505 });
+        const monitors = [];
+
+        for (let y = 0; y < 2; y++) {
+            for (let x = 0; x < 2; x++) {
+                const monitorCase = new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.7, 0.05), plasticMaterial);
+                const monitorIndex = y * 2 + x;
+                const monitorScreen = new THREE.Mesh(new THREE.BoxGeometry(1.1, 0.6, 0.01), monitorOffMaterial);
+                
+                // Add power button to monitor
+                const buttonGeo = new THREE.CylinderGeometry(0.025, 0.025, 0.02, 16);
+                const buttonMat = new THREE.MeshStandardMaterial({ color: 0x880000, emissive: 0x330000 });
+                const powerButton = new THREE.Mesh(buttonGeo, buttonMat);
+                powerButton.position.set(0.5, -0.3, 0.05);
+                powerButton.rotation.x = Math.PI / 2;
+                powerButton.userData.action = `toggleMonitor${monitorIndex}`;
+                powerButton.userData.isPowerButton = true;
+                monitorCase.add(powerButton);
+                interactiveButtons.push(powerButton);
+
+                monitorScreen.position.z = 0.025;
+                monitorCase.add(monitorScreen);
+                monitorCase.position.set(-0.7 + x * 1.4, 1.2 + y * 0.8, -ROOM_DEPTH/2 + 0.05);
+                monitorCase.castShadow = true;
+                monitorGroup.add(monitorCase);
+                monitors.push(monitorScreen);
+            }
+        }
+        scene.add(monitorGroup);
+
+        const doorWarningLightMesh = new THREE.Mesh(new THREE.SphereGeometry(0.05, 16, 16), new THREE.MeshStandardMaterial({color: 0xff0000, emissive: 0x880000, emissiveIntensity: 0}));
+        doorWarningLightMesh.position.copy(doorLight.position);
+        scene.add(doorWarningLightMesh);
+        
+        // --- GLB/FBX Model Loading ---
+        
+        function setupModel(model, sourceUrl, isUploaded) {
+            const wrapper = new THREE.Group();
+            const box = new THREE.Box3().setFromObject(model);
+            const size = new THREE.Vector3();
+            box.getSize(size);
+            const center = new THREE.Vector3();
+            box.getCenter(center);
+            model.position.set(-center.x, -center.y + size.y / 2, -center.z);
+            wrapper.add(model);
+            wrapper.userData.source = sourceUrl;
+            wrapper.userData.isUploaded = isUploaded;
+            return wrapper;
+        }
+
+        const modelLoadCallback = (loadedObject, sourceUrl, isUploaded = false) => {
+            let model, animations;
+            if (loadedObject.scene) { // GLTF
+                model = loadedObject.scene;
+                animations = loadedObject.animations;
+            } else { // FBX
+                model = loadedObject;
+                animations = loadedObject.animations;
+            }
+
+            const wrapper = setupModel(model, sourceUrl, isUploaded);
+            wrapper.traverse(function (child) {
+                if (child.isMesh) {
+                    child.castShadow = true;
+                    child.receiveShadow = true;
+                }
+            });
+
+            const mixer = new THREE.AnimationMixer(wrapper);
+            mixers.push(mixer);
+            wrapper.userData.mixer = mixer; 
+
+            if (animations && animations.length) {
+                mixer.clipAction(animations[0]).play();
+            }
+
+            scene.add(wrapper);
+            transformableModels.push(wrapper);
+            updateSceneObjectsPanel();
+            return wrapper;
+        };
+        const errorCallback = (url) => (error) => console.error(`Error loading ${url}:`, error);
+        
+        const defaultSceneState = [
+          // Back Wall Objects (Desk and items on it)
+          { "source": "https://raw.githubusercontent.com/orengamchi/mamad/main/table___school_office_-_7_mb.glb", "position": { "x": 1.5, "y": 0, "z": -2.5 }, "rotation": { "x": 0, "y": 0, "z": 0, "order": "XYZ" }, "scale": { "x": 1.5, "y": 1, "z": 1.2 } },
+          { "source": "https://raw.githubusercontent.com/orengamchi/mamad/main/desk_lamp.glb", "position": { "x": 1.2, "y": 0.85, "z": -2.6 }, "rotation": { "x": 0, "y": -0.7, "z": 0, "order": "XYZ" }, "scale": { "x": 0.15, "y": 0.15, "z": 0.15 } },
+          { "source": "https://raw.githubusercontent.com/orengamchi/mamad/main/phone.glb", "position": { "x": -1.3, "y": 0.85, "z": -2.6 }, "rotation": { "x": 0, "y": 0.3, "z": 0, "order": "XYZ" }, "scale": { "x": 0.0175, "y": 0.0175, "z": 0.0175 } },
+          { "source": "https://raw.githubusercontent.com/orengamchi/mamad/main/recorder-freepoly.org.glb", "position": { "x": -1.0, "y": 0.85, "z": -2.6 }, "rotation": { "x": 0, "y": 0.2, "z": 0, "order": "XYZ" }, "scale": { "x": 0.5, "y": 0.5, "z": 0.5 } },
+          { "source": "https://github.com/orengamchi/mamad/blob/main/desktop_computer.glb", "position": { "x": 0, "y": 0.85, "z": -2.6 }, "rotation": { "x": 0, "y": 0.1, "z": 0, "order": "XYZ" }, "scale": { "x": 0.4, "y": 0.4, "z": 0.4 } },
+
+          // Right Wall Objects
+          { "source": "https://raw.githubusercontent.com/orengamchi/mamad/main/detective_board.glb", "position": { "x": 2.9, "y": 1.5, "z": -1.0 }, "rotation": { "x": 0, "y": -1.57, "z": 0, "order": "XYZ" }, "scale": { "x": 1.5, "y": 1.5, "z": 1.5 } },
+          
+          // Left Wall Objects
+          { "source": "https://raw.githubusercontent.com/orengamchi/mamad/main/corkboard.glb", "position": { "x": -2.9, "y": 1.5, "z": 1.0 }, "rotation": { "x": 0, "y": 1.57, "z": 0, "order": "XYZ" }, "scale": { "x": 1.2, "y": 1.2, "z": 1.2 } },
+          { "source": "https://raw.githubusercontent.com/orengamchi/mamad/main/metal_cabinet.glb", "position": { "x": -2.9, "y": 0, "z": 2.0 }, "rotation": { "x": 0, "y": 1.57, "z": 0, "order": "XYZ" }, "scale": { "x": 0.15, "y": 0.15, "z": 0.15 } },
+
+          // Front Wall Objects
+          { "source": "https://raw.githubusercontent.com/orengamchi/mamad/main/door.glb", "position": { "x": 1.5, "y": 0, "z": 2.9 }, "rotation": { "x": 0, "y": 3.14, "z": 0, "order": "XYZ" }, "scale": { "x": 0.75, "y": 0.75, "z": 0.75 } },
+          
+          // Center Room Objects
+          { "source": "https://github.com/orengamchi/mamad/blob/main/office_ceiling.glb", "position": { "x": 0, "y": ROOM_HEIGHT - 0.1, "z": 0 }, "rotation": { "x": 0, "y": 0, "z": 0, "order": "XYZ" }, "scale": { "x": 0.2, "y": 0.2, "z": 0.2 } },
+          { "source": "https://github.com/orengamchi/mamad/blob/main/fluorescent_light_fixtures_-_4x_4096px2.glb", "position": { "x": -0.8, "y": ROOM_HEIGHT - 0.2, "z": -0.8 }, "rotation": { "x": 0, "y": 0, "z": 0, "order": "XYZ" }, "scale": { "x": 1.5, "y": 1.5, "z": 1.5 } },
+          { "source": "https://github.com/orengamchi/mamad/blob/main/fluorescent_light_fixtures_-_4x_4096px2.glb#2", "position": { "x": 0.8, "y": ROOM_HEIGHT - 0.2, "z": -0.8 }, "rotation": { "x": 0, "y": 0, "z": 0, "order": "XYZ" }, "scale": { "x": 1.5, "y": 1.5, "z": 1.5 } },
+          { "source": "https://github.com/orengamchi/mamad/blob/main/fluorescent_light_fixtures_-_4x_4096px2.glb#3", "position": { "x": -0.8, "y": ROOM_HEIGHT - 0.2, "z": 0.8 }, "rotation": { "x": 0, "y": 0, "z": 0, "order": "XYZ" }, "scale": { "x": 1.5, "y": 1.5, "z": 1.5 } },
+          { "source": "https://github.com/orengamchi/mamad/blob/main/fluorescent_light_fixtures_-_4x_4096px2.glb#4", "position": { "x": 0.8, "y": ROOM_HEIGHT - 0.2, "z": 0.8 }, "rotation": { "x": 0, "y": 0, "z": 0, "order": "XYZ" }, "scale": { "x": 1.5, "y": 1.5, "z": 1.5 } },
+          { "source": "https://github.com/orengamchi/mamad/blob/main/ceiling_fan.glb", "position": { "x": 0, "y": ROOM_HEIGHT - 0.7, "z": 0 }, "rotation": { "x": 0, "y": 0, "z": 0, "order": "XYZ" }, "scale": { "x": 1.8, "y": 1.8, "z": 1.8 } },
+          { "source": "https://raw.githubusercontent.com/orengamchi/mamad/main/office_chair.glb", "position": { "x": -0.8, "y": 0, "z": -1.0 }, "rotation": { "x": 0, "y": 2.5, "z": 0, "order": "XYZ" }, "scale": { "x": 0.65, "y": 0.65, "z": 0.65 } },
+          { "source": "https://github.com/orengamchi/mamad/blob/main/wood_floor.glb", "position": { "x": 0, "y": 0.01, "z": 0 }, "rotation": { "x": 0, "y": 0, "z": 0, "order": "XYZ" }, "scale": { "x": 0.25, "y": 0.25, "z": 0.25 } }
+        ];
+
+        let fanBladesObject = null;
+        
+        function loadModelsFromState(sceneState) {
+            const loadingPromises = sceneState.map(modelInfo => {
+                return new Promise((resolve, reject) => {
+                    let loadUrl = modelInfo.source.split('#')[0];
+                    if (loadUrl.includes("github.com")) {
+                        loadUrl = loadUrl.replace("github.com", "raw.githubusercontent.com").replace("/blob/", "/");
+                    }
+
+                    gltfLoader.load(loadUrl, (gltf) => {
+                        const wrapper = modelLoadCallback(gltf, modelInfo.source, false);
+                        wrapper.position.copy(modelInfo.position);
+                        wrapper.scale.copy(modelInfo.scale);
+                        wrapper.rotation.set(modelInfo.rotation.x, modelInfo.rotation.y, modelInfo.rotation.z, modelInfo.rotation.order);
+
+                        if (modelInfo.source.includes('desk_lamp')) {
+                           deskLampLight.target = wrapper;
+                        }
+                        if (modelInfo.source.includes('ceiling_fan')) {
+                            fanBladesObject = gltf.scene.getObjectByName('Ceiling_Fan_Blades') || gltf.scene;
+                        }
+                        if (modelInfo.source.includes('desktop_computer')) {
+                            tickerTriggerObject = wrapper;
+                        }
+                         if (modelInfo.source.includes('wood_floor')) {
+                            gltf.scene.traverse(child => {
+                                if (child.isMesh) {
+                                    floorMaterial = child.material;
+                                }
+                            });
+                        }
+                        if (modelInfo.source.includes('fluorescent_light')) {
+                            gltf.scene.traverse(child => {
+                                if (child.isMesh && (child.name.includes('Emissive') || child.material.name.includes('Emissive'))) {
+                                    mainLightFixtures.push(child);
+                                    child.material.emissive = new THREE.Color(0xffffff);
+                                }
+                            });
+                            const lightWidth = 2.0; 
+                            const lightHeight = 0.2;
+                            const rectLight = new THREE.RectAreaLight(0xffeedd, mainLightIntensity, lightWidth, lightHeight);
+                            rectLight.position.y = -0.1; 
+                            rectLight.rotation.x = -Math.PI / 2;
+                            wrapper.add(rectLight);
+                            mainLightSources.push(rectLight);
+                        }
+                        resolve(wrapper);
+                    }, undefined, (error) => {
+                        errorCallback(loadUrl)(error);
+                        reject(error);
+                    });
+                });
+            });
+
+            return Promise.all(loadingPromises);
+        }
+
+        async function initializeScene() {
+            let sceneStateToLoad = defaultSceneState;
+            const savedStateJSON = localStorage.getItem(LOCAL_STORAGE_KEY);
+
+            if (savedStateJSON) {
+                try {
+                    const savedState = JSON.parse(savedStateJSON);
+                    if (Array.isArray(savedState)) {
+                        sceneStateToLoad = savedState;
+                        console.log("טוען מצב שמור מהאחסון המקומי.");
+                    }
+                } catch (e) {
+                    console.error("שגיאה בניתוח המצב השמור, טוען סצנת ברירת מחדל.", e);
+                }
+            }
+
+            await loadModelsFromState(sceneStateToLoad);
+
+            console.log("כל המודלים נטענו, מבצע הצמדות בסצנה.");
+            const table = transformableModels.find(m => m.userData.source.includes('table___school_office'));
+            const lamp = transformableModels.find(m => m.userData.source.includes('desk_lamp'));
+
+            if (table && lamp) {
+                table.attach(lamp);
+                console.log("מנורה הוצמדה לשולחן.");
+            } else {
+                console.warn("לא נמצאו שולחן או מנורה להצמדה.");
+            }
+        }
+        
+        initializeScene();
+
+
+        // --- UI & Interactivity ---
+        const fanDimmer = document.getElementById('fan-dimmer');
+        const lightIntensitySlider = document.getElementById('light-intensity');
+        const bloomSlider = document.getElementById('bloom-strength');
+        const dofSlider = document.getElementById('dof-focus');
+        const wallColorPicker = document.getElementById('wall-color');
+        const fileInput = document.getElementById('file-input');
+        const loadSceneInput = document.getElementById('load-scene-input');
+        const animationInput = document.getElementById('animation-input');
+        const loadAnimationBtn = document.getElementById('load-animation-btn');
+        const animationControls = document.getElementById('animation-controls');
+        const propsPanel = document.getElementById('properties-panel');
+        const closePropsBtn = document.getElementById('close-props-btn');
+        const scaleLock = document.getElementById('scale-lock');
+        const objectsList = document.getElementById('objects-list');
+        const tickerOverlay = document.getElementById('ticker-input-overlay');
+        const tickerInput = document.getElementById('ticker-text-input');
+        const setTickerBtn = document.getElementById('set-ticker-text-btn');
+        const sceneObjectsPanel = document.getElementById('scene-objects-panel');
+        let hidePanelTimeout;
+        
+        const propInputs = {
+            pos: [document.getElementById('pos-x'), document.getElementById('pos-y'), document.getElementById('pos-z')],
+            rot: [document.getElementById('rot-x'), document.getElementById('rot-y'), document.getElementById('rot-z')],
+            scale: [document.getElementById('scale-x'), document.getElementById('scale-y'), document.getElementById('scale-z')],
+        };
+
+        let fanSpeed = 0;
+
+        function showNotification(message) {
+            const notification = document.createElement('div');
+            Object.assign(notification.style, {
+                position: 'absolute', bottom: '20px', left: '50%', transform: 'translateX(-50%)',
+                backgroundColor: 'rgba(0, 0, 0, 0.8)', color: 'white', padding: '10px 20px',
+                borderRadius: '5px', zIndex: '100', transition: 'opacity 0.5s',
+            });
+            notification.textContent = message;
+            document.body.appendChild(notification);
+            setTimeout(() => {
+                notification.style.opacity = '0';
+                setTimeout(() => document.body.removeChild(notification), 500);
+            }, 2500);
+        }
+        
+        fanDimmer.addEventListener('input', (e) => { fanSpeed = parseFloat(e.target.value); });
+        
+        function saveSceneToFile() {
+            const sceneState = transformableModels.map(model => {
+                const originalUserData = { ...model.userData };
+                delete model.userData.mixer; 
+
+                let modelState;
+                if (originalUserData.isUploaded) {
+                    modelState = {
+                        isUploaded: true,
+                        source: originalUserData.source,
+                        objectJSON: model.toJSON()
+                    };
+                } else {
+                    modelState = {
+                        isUploaded: false,
+                        source: originalUserData.source,
+                        position: model.position.clone(),
+                        rotation: {x: model.rotation.x, y: model.rotation.y, z: model.rotation.z, order: model.rotation.order},
+                        scale: model.scale.clone()
+                    };
+                }
+                
+                model.userData = originalUserData;
+                return modelState;
+            });
+            const jsonString = JSON.stringify(sceneState, null, 2);
+            const blob = new Blob([jsonString], {type: 'application/json'});
+            const downloadUrl = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = downloadUrl; a.download = 'control-room-scene.json';
+            document.body.appendChild(a); a.click(); document.body.removeChild(a);
+            URL.revokeObjectURL(downloadUrl);
+            showNotification('הסצנה נשמרה לקובץ!');
+        }
+
+        function saveStateToLocalStorage() {
+            try {
+                const sceneState = transformableModels.map(model => {
+                    const state = {
+                        isUploaded: model.userData.isUploaded,
+                        source: model.userData.source,
+                        position: model.position.clone(),
+                        rotation: {x: model.rotation.x, y: model.rotation.y, z: model.rotation.z, order: model.rotation.order},
+                        scale: model.scale.clone()
+                    };
+                    if (state.isUploaded) {
+                       // For simplicity, we won't re-serialize uploaded models to local storage in this version
+                    }
+                    return state;
+                });
+                const jsonString = JSON.stringify(sceneState);
+                localStorage.setItem(LOCAL_STORAGE_KEY, jsonString);
+            } catch (error) {
+                console.error("Failed to save scene to local storage:", error);
+            }
+        }
+
+
+        fileInput.addEventListener('change', (event) => {
+            const file = event.target.files[0];
+            if (!file) return;
+            const url = URL.createObjectURL(file);
+            const filename = file.name.toLowerCase();
+            
+            let loaderInstance;
+            if (filename.endsWith('.fbx')) {
+                loaderInstance = fbxLoader;
+            } else {
+                loaderInstance = gltfLoader;
+            }
+
+            loaderInstance.load(url, (loadedObject) => {
+                const wrapper = modelLoadCallback(loadedObject, file.name, true);
+                const box = new THREE.Box3().setFromObject(wrapper);
+                const size = new THREE.Vector3(); box.getSize(size);
+                const targetSize = 1.0; 
+                const maxDim = Math.max(size.x, size.y, size.z);
+                if (maxDim > 0) {
+                    const scale = targetSize / maxDim;
+                    wrapper.scale.set(scale, scale, scale);
+                }
+                wrapper.position.set(0, 0, 0);
+                URL.revokeObjectURL(url);
+                recordState(wrapper); // This will also trigger a save
+            }, undefined, errorCallback(file.name));
+            fileInput.value = '';
+        });
+
+        loadSceneInput.addEventListener('change', (event) => {
+            const file = event.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = async (e) => {
+                try {
+                    const sceneState = JSON.parse(e.target.result);
+                    
+                    transformableModels.forEach(model => scene.remove(model));
+                    transformableModels = [];
+                    mixers.length = 0;
+                    tickerTriggerObject = null;
+                    deselectAll();
+                    
+                    await loadModelsFromState(sceneState);
+                    saveStateToLocalStorage();
+                    showNotification('הסצנה נטענה מקובץ בהצלחה!');
+
+                } catch (error) {
+                    showNotification('שגיאה בטעינת קובץ הסצנה.');
+                    console.error("Error parsing scene file:", error);
+                }
+            };
+            reader.readAsText(file);
+            loadSceneInput.value = '';
+        });
+
+        // --- UI Panels Logic ---
+        function hideObjectsPanel() {
+            sceneObjectsPanel.style.left = `-${sceneObjectsPanel.offsetWidth + 20}px`;
+        }
+
+        function showObjectsPanel() {
+            sceneObjectsPanel.style.left = '15px';
+        }
+
+        function resetHideTimer() {
+            clearTimeout(hidePanelTimeout);
+            showObjectsPanel();
+            hidePanelTimeout = setTimeout(hideObjectsPanel, 3000);
+        }
+
+        window.addEventListener('mousemove', resetHideTimer);
+        resetHideTimer();
+
+        function cleanModelName(source) {
+            if (!source) return 'Unknown Object';
+            const name = source.split('/').pop().split('#')[0].replace('.glb', '').replace('.fbx','').replace(/_/g, ' ');
+            return name.split(' ').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
+        }
+        
+        function updateSceneObjectsPanel() {
+            objectsList.innerHTML = '';
+            transformableModels.forEach((model) => {
+                const li = document.createElement('li');
+                li.textContent = cleanModelName(model.userData.source);
+                li.dataset.uuid = model.uuid;
+                li.addEventListener('click', () => {
+                    selectObject(model);
+                });
+                objectsList.appendChild(li);
+            });
+        }
+
+        function selectObject(object) {
+            // Traverse up to find the root transformable model if a child mesh was clicked
+            let parentObject = object;
+            while(parentObject.parent && !transformableModels.includes(parentObject)) {
+                parentObject = parentObject.parent;
+            }
+
+            transformControls.attach(parentObject);
+            showPropertiesPanel(parentObject);
+            
+            let hasSkeleton = false;
+            parentObject.traverse(child => {
+                if (child.isSkinnedMesh) {
+                    hasSkeleton = true;
+                }
+            });
+
+            animationControls.style.display = hasSkeleton ? 'block' : 'none';
+
+            document.querySelectorAll('#objects-list li').forEach(li => {
+                li.classList.toggle('selected', li.dataset.uuid === parentObject.uuid);
+            });
+        }
+
+        function deselectAll() {
+             transformControls.detach();
+             hidePropertiesPanel();
+             animationControls.style.display = 'none';
+             document.querySelectorAll('#objects-list li.selected').forEach(li => li.classList.remove('selected'));
+        }
+
+        function showPropertiesPanel(object) {
+            if (!object) return;
+            propsPanel.style.display = 'block';
+            updatePropertiesPanel(object);
+        }
+
+        function hidePropertiesPanel() {
+            propsPanel.style.display = 'none';
+        }
+
+        function updatePropertiesPanel(object) {
+            if (!object || !propsPanel.style.display || propsPanel.style.display === 'none') return;
+            propInputs.pos[0].value = object.position.x.toFixed(2);
+            propInputs.pos[1].value = object.position.y.toFixed(2);
+            propInputs.pos[2].value = object.position.z.toFixed(2);
+            propInputs.rot[0].value = THREE.MathUtils.radToDeg(object.rotation.x).toFixed(1);
+            propInputs.rot[1].value = THREE.MathUtils.radToDeg(object.rotation.y).toFixed(1);
+            propInputs.rot[2].value = THREE.MathUtils.radToDeg(object.rotation.z).toFixed(1);
+            propInputs.scale[0].value = object.scale.x.toFixed(2);
+            propInputs.scale[1].value = object.scale.y.toFixed(2);
+            propInputs.scale[2].value = object.scale.z.toFixed(2);
+        }
+        
+        function updateObjectFromPanel(sourceInput) {
+            const object = transformControls.object;
+            if (!object) return;
+            
+            if (sourceInput && sourceInput.id.startsWith('scale-') && scaleLock.classList.contains('locked')) {
+                const changedValue = parseFloat(sourceInput.value);
+                propInputs.scale.forEach(input => input.value = changedValue.toFixed(2));
+            }
+            object.position.set(parseFloat(propInputs.pos[0].value), parseFloat(propInputs.pos[1].value), parseFloat(propInputs.pos[2].value));
+            object.rotation.set(
+                THREE.MathUtils.degToRad(parseFloat(propInputs.rot[0].value)),
+                THREE.MathUtils.degToRad(parseFloat(propInputs.rot[1].value)),
+                THREE.MathUtils.degToRad(parseFloat(propInputs.rot[2].value))
+            );
+            object.scale.set(parseFloat(propInputs.scale[0].value), parseFloat(propInputs.scale[1].value), parseFloat(propInputs.scale[2].value));
+            
+            recordState(object); // Record state after panel update
+        }
+
+        Object.values(propInputs).flat().forEach(input => input.addEventListener('change', (e) => updateObjectFromPanel(e.target)));
+        closePropsBtn.addEventListener('click', deselectAll);
+        scaleLock.addEventListener('click', () => {
+            scaleLock.classList.toggle('locked');
+            scaleLock.src = scaleLock.classList.contains('locked') 
+                ? "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNCIgaGVpZHRoPSIyNCIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiBzdHJva2U9IiNmZmYiIHN0cm9rZS13aWR0aD0iMiIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiBzdHJva2UtbGluZWpvaW49InJvdW5kIj48cGF0aCBkPSJNMTAgMTNoLTQgYTEgMSAwIDAgMCAtMSAxIHY0IGExIDEgMCAwIDAgMSAxIGg0IGExIDEgMCAwIDAgMSAtMSB2LTQgYTEgMSAwIDAgMCAtMSAtMSB6Ij48L3BhdGggZD0iTTcgMTFWNyBhNS4wMDYgNS4wMDYgMCAwIDEgNSAtNSA1IDUgMCAwIDEgMy4xMzQgMS45MDUiPjwvcGF0aD48cGF0aCBkPSJNMTQgMTRoNCBhMSAxIDAgMCAwIDEgLTEgdi0xIGExIDEgMCAwIDAgLTEgLTEgaC0xIj48L3BhdGggPjwvc3ZnPg=="
+                : "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNCIgaGVpZHRoPSIyNCIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiBzdHJva2U9IiNmZmYiIHN0cm9rZS13aWR0aD0iMiIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiBzdHJva2UtbGluZWpvaW49InJvdW5kIj48cGF0aCBkPSJNMTAgMTNoLTQgYTEgMSAwIDAgMCAtMSAxIHY0IGExIDEgMCAwIDAgMSAxIGg0IGExIDEgMCAwIDAgMSAtMSB2LTQgYTEgMSAwIDAgMCAtMSAtMSB6Ij48L3BhdGggZD0iTTcgMTFWNyBhNSA1IDAgMCAxIDEuODQyIC00LjExOE0xMC41IDhjMS43MjEgMCAzLjIzMyAuNzY3IDQuNSAyLjUiPjwvcGF0aD48cGF0aCBkPSJNMTQgMTRoNCBhMSAxIDAgMCAwIDEgLTEgdi0xIGExIDEgMCAwIDAgLTEgLTEgaC0xIj48L3BhdGggPjwvc3ZnPg==";
+        });
+
+        loadAnimationBtn.addEventListener('click', () => {
+            animationInput.click();
+        });
+
+        animationInput.addEventListener('change', (event) => {
+            const file = event.target.files[0];
+            const selectedObject = transformControls.object;
+
+            if (!file || !selectedObject || !selectedObject.userData.mixer) {
+                if(!selectedObject.userData.mixer) showNotification('לאובייקט הנבחר אין מערכת אנימציה.');
+                return;
+            }
+
+            const url = URL.createObjectURL(file);
+            fbxLoader.load(url, (loadedAnim) => {
+                const animationClip = loadedAnim.animations[0];
+                if (!animationClip) {
+                    showNotification('קובץ ה-FBX לא מכיל אנימציה.');
+                    URL.revokeObjectURL(url);
+                    return;
+                }
+
+                const mixer = selectedObject.userData.mixer;
+                mixer.stopAllAction();
+                const action = mixer.clipAction(animationClip);
+                action.play();
+                showNotification('אנימציה נטענה והופעלה!');
+
+                URL.revokeObjectURL(url);
+            }, undefined, errorCallback(file.name));
+
+            animationInput.value = '';
+        });
+
+        // --- Materials UI Listeners ---
+        const roughnessSlider = document.getElementById('roughness-slider');
+        const bumpSlider = document.getElementById('bump-slider');
+        const uploadWallTextureBtn = document.getElementById('upload-wall-texture-btn');
+        const wallTextureInput = document.getElementById('wall-texture-input');
+        const uploadFloorTextureBtn = document.getElementById('upload-floor-texture-btn');
+        const floorTextureInput = document.getElementById('floor-texture-input');
+
+        roughnessSlider.addEventListener('input', (e) => {
+            const value = parseFloat(e.target.value);
+            if (wallMaterial) wallMaterial.roughness = value;
+            if (floorMaterial) floorMaterial.roughness = value;
+        });
+
+        bumpSlider.addEventListener('input', (e) => {
+            const value = parseFloat(e.target.value);
+            if (wallMaterial) wallMaterial.bumpScale = value;
+            if (floorMaterial) floorMaterial.bumpScale = value;
+        });
+
+        uploadWallTextureBtn.addEventListener('click', () => wallTextureInput.click());
+        uploadFloorTextureBtn.addEventListener('click', () => floorTextureInput.click());
+
+        wallTextureInput.addEventListener('change', (event) => {
+            const file = event.target.files[0];
+            if (!file || !wallMaterial) return;
+            
+            const url = URL.createObjectURL(file);
+            textureLoader.load(url, (texture) => {
+                texture.wrapS = THREE.RepeatWrapping;
+                texture.wrapT = THREE.RepeatWrapping;
+                texture.repeat.set(4, 2);
+                
+                wallMaterial.map = texture;
+                wallMaterial.bumpMap = texture;
+                wallMaterial.bumpScale = parseFloat(bumpSlider.value);
+                wallMaterial.needsUpdate = true;
+                
+                URL.revokeObjectURL(url);
+            });
+            wallTextureInput.value = '';
+        });
+
+        floorTextureInput.addEventListener('change', (event) => {
+            const file = event.target.files[0];
+            if (!file || !floorMaterial) return;
+
+            const url = URL.createObjectURL(file);
+            textureLoader.load(url, (texture) => {
+                texture.wrapS = THREE.RepeatWrapping;
+                texture.wrapT = THREE.RepeatWrapping;
+                texture.repeat.set(8, 8);
+                
+                floorMaterial.map = texture;
+                floorMaterial.bumpMap = texture;
+                floorMaterial.bumpScale = parseFloat(bumpSlider.value);
+                floorMaterial.needsUpdate = true;
+                
+                URL.revokeObjectURL(url);
+            });
+            floorTextureInput.value = '';
+        });
+
+
+        // --- Create 3D Wall Buttons ---
+        function createWallButton(text, position, action, isSmall = false) {
+            const group = new THREE.Group();
+            const width = isSmall ? 0.25 : 0.6;
+            const height = 0.25;
+
+            const geometry = new THREE.BoxGeometry(width, height, 0.1);
+            const material = new THREE.MeshStandardMaterial({ color: 0x333333, roughness: 0.8 });
+            const buttonMesh = new THREE.Mesh(geometry, material);
+            group.add(buttonMesh);
+
+            const canvas = document.createElement('canvas');
+            const context = canvas.getContext('2d');
+            canvas.width = isSmall ? 128 : 256;
+            canvas.height = 128;
+            context.font = 'bold 40px Arial';
+            context.fillStyle = 'white';
+            context.textAlign = 'center';
+            context.textBaseline = 'middle';
+            context.fillText(text, canvas.width / 2, canvas.height / 2);
+            const texture = new THREE.CanvasTexture(canvas);
+            const spriteMaterial = new THREE.SpriteMaterial({ map: texture });
+            const sprite = new THREE.Sprite(spriteMaterial);
+            sprite.scale.set(width, height / 2, 1);
+            sprite.position.z = 0.06;
+            group.add(sprite);
+            
+            group.position.copy(position);
+            
+            group.userData.action = action;
+            
+            scene.add(group);
+            interactiveButtons.push(group);
+            return group;
+        }
+
+        // Scene Management Buttons
+        const sceneBtnPanel = new THREE.Group();
+        sceneBtnPanel.position.set(ROOM_WIDTH/2 - 0.1, 1.6, 0);
+        sceneBtnPanel.rotation.y = -Math.PI / 2;
+        scene.add(sceneBtnPanel);
+        sceneBtnPanel.add(createWallButton('טען מודל', new THREE.Vector3(0, 0.8, 0), 'loadModel'));
+        sceneBtnPanel.add(createWallButton('שמור סצנה', new THREE.Vector3(0, 0.4, 0), 'saveScene'));
+        sceneBtnPanel.add(createWallButton('טען סצנה', new THREE.Vector3(0, 0, 0), 'loadScene'));
+        sceneBtnPanel.add(createWallButton('חזור', new THREE.Vector3(0, -0.4, 0), 'undo'));
+        sceneBtnPanel.add(createWallButton('בצע שוב', new THREE.Vector3(0, -0.8, 0), 'redo'));
+        sceneBtnPanel.add(createWallButton('איפוס סצנה', new THREE.Vector3(0, -1.2, 0), 'resetScene'));
+        
+        // Control Buttons
+        const controlBtnPanel = new THREE.Group();
+        controlBtnPanel.position.set(-ROOM_WIDTH/2 + 0.1, 1.6, 0);
+        controlBtnPanel.rotation.y = Math.PI / 2;
+        scene.add(controlBtnPanel);
+        controlBtnPanel.add(createWallButton('מנורת שולחן', new THREE.Vector3(0, 0.6, 0), 'toggleDeskLamp'));
+        controlBtnPanel.add(createWallButton('אזעקה', new THREE.Vector3(0, 0.2, 0), 'toggleDoorLight'));
+        // The +/- buttons are now deprecated by the slider
+        // controlBtnPanel.add(createWallButton('+', new THREE.Vector3(-0.18, -0.6, 0), 'lightUp', true));
+        // controlBtnPanel.add(createWallButton('-', new THREE.Vector3(0.18, -0.6, 0), 'lightDown', true));
+        
+
+        // --- LED Ticker ---
+        const tickerCanvas = document.createElement('canvas');
+        const tickerContext = tickerCanvas.getContext('2d');
+        const tickerWidth = 4096;
+        const tickerHeight = 128;
+        tickerCanvas.width = tickerWidth;
+        tickerCanvas.height = tickerHeight;
+        const tickerTexture = new THREE.CanvasTexture(tickerCanvas);
+        const tickerMaterial = new THREE.MeshBasicMaterial({ map: tickerTexture, transparent: true });
+        
+        let tickerText = "SYSTEM ONLINE... SECURE CHANNEL ESTABLISHED... MONITORING ALL SECTORS... STATUS: NOMINAL... ".repeat(5);
+        let textScrollX = 0;
+
+        const backTicker = new THREE.Mesh(new THREE.PlaneGeometry(ROOM_WIDTH, 0.5), tickerMaterial);
+        backTicker.position.set(0, ROOM_HEIGHT - 0.3, -ROOM_DEPTH / 2 + 0.02);
+        scene.add(backTicker);
+        const leftTicker = new THREE.Mesh(new THREE.PlaneGeometry(ROOM_DEPTH, 0.5), tickerMaterial);
+        leftTicker.position.set(-ROOM_WIDTH / 2 + 0.02, ROOM_HEIGHT - 0.3, 0);
+        leftTicker.rotation.y = Math.PI / 2;
+        scene.add(leftTicker);
+        const rightTicker = new THREE.Mesh(new THREE.PlaneGeometry(ROOM_DEPTH, 0.5), tickerMaterial);
+        rightTicker.position.set(ROOM_WIDTH / 2 - 0.02, ROOM_HEIGHT - 0.3, 0);
+        rightTicker.rotation.y = -Math.PI / 2;
+        scene.add(rightTicker);
+
+
+        // --- Animation Loop & Listeners ---
+        function animate() {
+            requestAnimationFrame(animate);
+            const delta = clock.getDelta();
+
+            for (const mixer of mixers) {
+                mixer.update(delta);
+            }
+            
+            if (doorLight.visible) {
+                 doorWarningLightMesh.rotation.y += delta * 5;
+            }
+
+            if (isZooming) {
+                camera.position.lerp(zoomTargetPosition, 0.08);
+                controls.target.lerp(zoomTargetLookAt, 0.08);
+                if (camera.position.distanceTo(zoomTargetPosition) < 0.05) {
+                    isZooming = false;
+                    camera.position.copy(zoomTargetPosition);
+                    controls.target.copy(zoomTargetLookAt);
+                }
+            }
+
+            // Animate LED Ticker
+            tickerContext.clearRect(0, 0, tickerWidth, tickerHeight);
+            tickerContext.font = 'bold 90px "Courier New", Courier, monospace';
+            tickerContext.fillStyle = '#FF5500';
+            tickerContext.fillText(tickerText, textScrollX, tickerHeight / 2 + 30);
+            tickerTexture.needsUpdate = true;
+            textScrollX -= 4;
+            const textWidth = tickerContext.measureText(tickerText).width;
+            if (textScrollX < -textWidth) {
+                textScrollX = tickerWidth * 0.2;
+            }
+
+
+            if (fanBladesObject) { fanBladesObject.rotation.y += fanSpeed; }
+            controls.update();
+
+            // Render security cameras to their targets before the main render
+            for (let i = 0; i < 4; i++) {
+                if(areMonitorsOn[i]) {
+                    renderer.setRenderTarget(securityCameraRenderTargets[i]);
+                    renderer.render(scene, securityCameras[i]);
+                }
+            }
+            renderer.setRenderTarget(null); // Switch back to default render target
+            
+            composer.render();
+        }
+        
+        window.addEventListener('resize', () => {
+            const width = window.innerWidth;
+            const height = window.innerHeight;
+            camera.aspect = width / height;
+            camera.updateProjectionMatrix();
+            renderer.setSize(width, height);
+            composer.setSize(width, height);
+            bloomPass.setSize(width, height);
+            bokehPass.uniforms['aspect'].value = camera.aspect;
+        });
+
+        function setMainLight(intensity) {
+            mainLightIntensity = THREE.MathUtils.clamp(intensity, 0, 50); 
+            mainLightSources.forEach(light => { light.intensity = mainLightIntensity; });
+             // Adjust emissive intensity for a more subtle glow on the fixture itself
+            mainLightFixtures.forEach(fixture => { fixture.material.emissiveIntensity = mainLightIntensity / 25; });
+        }
+        setMainLight(mainLightIntensity);
+
+        lightIntensitySlider.addEventListener('input', (e) => setMainLight(parseFloat(e.target.value)));
+        bloomSlider.addEventListener('input', (e) => {
+            bloomPass.strength = parseFloat(e.target.value);
+        });
+        dofSlider.addEventListener('input', (e) => {
+            const value = parseFloat(e.target.value);
+            if (value === 0) {
+                bokehPass.enabled = false;
+            } else {
+                bokehPass.enabled = true;
+                bokehPass.uniforms['focus'].value = value;
+            }
+        });
+        wallColorPicker.addEventListener('input', (e) => {
+            wallMaterial.map = null; // Remove texture when color is picked
+            wallMaterial.bumpMap = null;
+            wallMaterial.color.set(e.target.value);
+            wallMaterial.needsUpdate = true;
+        });
+
+
+        window.addEventListener('click', (event) => {
+             mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+             mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+             raycaster.setFromCamera(mouse, camera);
+             
+             // Check for wall button clicks first
+             const buttonIntersects = raycaster.intersectObjects(interactiveButtons, true);
+             if (buttonIntersects.length > 0) {
+                 let clickedObject = buttonIntersects[0].object;
+                 
+                 if (clickedObject.userData.isPowerButton) {
+                   const index = parseInt(clickedObject.userData.action.replace('toggleMonitor', ''));
+                   areMonitorsOn[index] = !areMonitorsOn[index];
+                   monitors[index].material = areMonitorsOn[index] ? monitorMaterials[index] : monitorOffMaterial;
+                   
+                   clickedObject.material.color.set(areMonitorsOn[index] ? 0x008800 : 0x880000);
+                   clickedObject.material.emissive.set(areMonitorsOn[index] ? 0x003300 : 0x330000);
+                   
+                   return;
+                 }
+
+                 let clickedButton = clickedObject;
+                 while(clickedButton.parent && !clickedButton.userData.action) {
+                     clickedButton = clickedButton.parent;
+                 }
+                 
+                 const worldPosition = new THREE.Vector3();
+                 clickedButton.getWorldPosition(worldPosition);
+                 const localOffset = clickedButton.parent.worldToLocal(worldPosition.clone()).z;
+
+                 clickedButton.position.z = localOffset - 0.05;
+                 setTimeout(() => { clickedButton.position.z = localOffset; }, 150);
+                 
+                 switch(clickedButton.userData.action) {
+                     case 'loadModel': fileInput.click(); break;
+                     case 'saveScene': saveSceneToFile(); break;
+                     case 'loadScene': loadSceneInput.click(); break;
+                     case 'undo': undo(); break;
+                     case 'redo': redo(); break;
+                     case 'resetScene':
+                        localStorage.removeItem(LOCAL_STORAGE_KEY);
+                        showNotification("הסצנה אופסה. מרענן עמוד...");
+                        setTimeout(() => location.reload(), 1000);
+                        break;
+                     case 'lightUp': setMainLight(mainLightIntensity + 5); lightIntensitySlider.value = mainLightIntensity; break;
+                     case 'lightDown': setMainLight(mainLightIntensity - 5); lightIntensitySlider.value = mainLightIntensity; break;
+                     case 'toggleDeskLamp': deskLampLight.visible = !deskLampLight.visible; break;
+                     case 'toggleMonitors':
+                         const turnOn = !areMonitorsOn.every(s => s);
+                         for(let i=0; i<4; i++) {
+                             areMonitorsOn[i] = turnOn;
+                             monitors[i].material = areMonitorsOn[i] ? monitorMaterials[i] : monitorOffMaterial;
+                         }
+                         break;
+                     case 'toggleDoorLight':
+                         doorLight.visible = !doorLight.visible;
+                         doorWarningLightMesh.material.emissiveIntensity = doorLight.visible ? 1 : 0;
+                         break;
+                 }
+                 return; // Stop processing further clicks
+             }
+        });
+
+        function updateTickerText() {
+            const newText = tickerInput.value.trim();
+            if (newText) {
+                tickerText = (newText + ' ').repeat(10);
+            } else {
+                tickerText = "SYSTEM ONLINE... SECURE CHANNEL ESTABLISHED... MONITORING ALL SECTORS... STATUS: NOMINAL... ".repeat(5);
+            }
+            textScrollX = 0;
+            tickerOverlay.style.display = 'none';
+        }
+
+        setTickerBtn.addEventListener('click', updateTickerText);
+        tickerInput.addEventListener('keydown', (event) => {
+            if (event.key === 'Enter') {
+                updateTickerText();
+            }
+        });
+
+        window.addEventListener('dblclick', (event) => {
+            if (tickerOverlay.style.display === 'flex') return; // Don't select objects when typing
+            mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+            mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+            raycaster.setFromCamera(mouse, camera);
+
+            // Check for keyboard click
+            if (tickerTriggerObject) {
+               const tickerIntersects = raycaster.intersectObjects([tickerTriggerObject], true);
+               if (tickerIntersects.length > 0) {
+                   tickerInput.value = "";
+                   tickerOverlay.style.display = 'flex';
+                   tickerInput.focus();
+                   return;
+               }
+           }
+
+            const intersects = raycaster.intersectObjects(transformableModels, true);
+            if (intersects.length > 0) {
+                let selectedObject = intersects[0].object;
+                while (selectedObject) {
+                    if (transformableModels.includes(selectedObject)) {
+                        selectObject(selectedObject);
+                        return;
+                    }
+                    selectedObject = selectedObject.parent;
+                }
+            }
+        });
+
+        window.addEventListener('keydown', (event) => {
+            if (event.target.tagName.toLowerCase() === 'input' && event.key !== 'Enter') return;
+
+            if (event.key === 'Shift') {
+                transformControls.setTranslationSnap(0.1);
+                transformControls.setRotationSnap(THREE.MathUtils.degToRad(5));
+                transformControls.setScaleSnap(0.05);
+            }
+            if (event.ctrlKey && event.key.toLowerCase() === 'z') {
+                event.preventDefault();
+                undo();
+            }
+            if (event.ctrlKey && event.key.toLowerCase() === 'y') {
+                event.preventDefault();
+                redo();
+            }
+            if (event.key === 'Delete') {
+                const objectToDelete = transformControls.object;
+                if (objectToDelete) {
+                    const index = transformableModels.findIndex(m => m.uuid === objectToDelete.uuid);
+                    if (index > -1) {
+                        transformableModels.splice(index, 1);
+                    }
+                    transformControls.detach();
+                    scene.remove(objectToDelete);
+                    hidePropertiesPanel();
+                    updateSceneObjectsPanel();
+                    saveStateToLocalStorage();
+                }
+            }
+            
+            if (event.key.toLowerCase() === 'z' && !event.ctrlKey) {
+                 const selectedObject = transformControls.object;
+                 if (selectedObject) {
+                     isZooming = true;
+                     const box = new THREE.Box3().setFromObject(selectedObject);
+                     const size = new THREE.Vector3();
+                     box.getSize(size);
+                     const center = new THREE.Vector3();
+                     box.getCenter(center);
+                     
+                     const maxDim = Math.max(size.x, size.y, size.z);
+                     const fitOffset = 1.5;
+                     const distance = maxDim / (2 * Math.tan(Math.PI * camera.fov / 360));
+                     
+                     const direction = controls.target.clone().sub(camera.position).normalize().multiplyScalar(distance * fitOffset);
+
+                     zoomTargetPosition.copy(center).sub(direction);
+                     zoomTargetLookAt.copy(center);
+                 }
+            }
+
+            switch (event.key.toLowerCase()) {
+                case 'q': case 'ק': deselectAll(); break;
+                case 'w': case "'": transformControls.setMode('translate'); break;
+                case 'e': case 'ט': transformControls.setMode('rotate'); break;
+                case 'r': case 'ר': transformControls.setMode('scale'); break;
+            }
+        });
+        
+        window.addEventListener('keyup', (event) => {
+             if (event.key === 'Shift') {
+                 transformControls.setTranslationSnap(null);
+                 transformControls.setRotationSnap(null);
+                 transformControls.setScaleSnap(null);
+             }
+        });
+        
+        transformControls.addEventListener('objectChange', () => {
+            updatePropertiesPanel(transformControls.object);
+        });
+
+        // --- Initial State Sync ---
+        fanDimmer.dispatchEvent(new Event('input'));
+        
+        animate();
+    </script>
+</body>
+</html>
+
